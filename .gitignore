@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Environment variables — NEVER commit this (contains your EVE client secret)
+.env
+
+# SQLite database — contains corp data, not for version control
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Electron build output
+dist/
+out/
+build/*.exe
+build/*.dmg
+build/icon-placeholder.ico
+
+
+# Electron builder cache
+.electron-builder-cache/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# Python cache (import_alts.py)
+__pycache__/
+*.pyc
