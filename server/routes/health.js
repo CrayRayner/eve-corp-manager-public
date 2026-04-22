@@ -1,7 +1,6 @@
 'use strict';
 const express = require('express');
 const router  = express.Router();
-const path    = require('path');
 const { requireAuth } = require('../auth');
 const { db, getSetting, setSetting } = require('../db');
 
@@ -17,32 +16,21 @@ function logNorm(value, max) {
   return Math.min(100, (Math.log1p(value) / Math.log1p(max)) * 100);
 }
 
-// Read FAT PAP DB (read-only) — returns Map<mainName, totalPoints> or empty Map
-function readFatPapPoints() {
+// Read fleet points from local DB — returns Map<characterName, totalPoints>
+// Uses the most recently imported month for the given corp, or empty Map.
+function readFleetPoints(corpId) {
   const map = new Map();
   try {
-    // USER_DATA_PATH is set by electron/main.js before the server starts.
-    // Falls back to a sibling-folder guess for dev mode.
-    const userDataPath = process.env.USER_DATA_PATH
-      || path.join(require('os').homedir(), 'AppData', 'Roaming', 'eve-corp-manager');
-    const fatPapDbPath = path.join(path.dirname(userDataPath), 'fat-pap-manager', 'data.db');
-    const Database = require('better-sqlite3');
-    const fpDb = new Database(fatPapDbPath, { readonly: true, fileMustExist: true });
-    try {
-      const latest = fpDb.prepare('SELECT MAX(id) AS id FROM pap_periods').get();
-      if (latest?.id) {
-        const entries = fpDb.prepare(
-          'SELECT character_name, fat_count, pap_count FROM pap_entries WHERE period_id = ?'
-        ).all(latest.id);
-        for (const e of entries) {
-          map.set(e.character_name, (e.fat_count || 0) + (e.pap_count || 0));
-        }
-      }
-    } finally {
-      fpDb.close();
-    }
+    const latest = db.prepare(
+      'SELECT period_month FROM fleet_points WHERE corporation_id = ? ORDER BY period_month DESC LIMIT 1'
+    ).get(corpId);
+    if (!latest) return map;
+    const rows = db.prepare(
+      'SELECT character_name, fat_count, pap_count FROM fleet_points WHERE corporation_id = ? AND period_month = ?'
+    ).all(corpId, latest.period_month);
+    for (const r of rows) map.set(r.character_name, (r.fat_count || 0) + (r.pap_count || 0));
   } catch (err) {
-    console.warn('[Health] FAT/PAP DB read failed:', err.message);
+    console.warn('[Health] Fleet points read failed:', err.message);
   }
   return map;
 }
@@ -179,8 +167,8 @@ router.get('/members', requireAuth, (req, res) => {
     for (const cid of seenThisKill) killsByChar.set(cid, (killsByChar.get(cid) || 0) + 1);
   }
 
-  // ── 5. FAT/PAP — auto from FAT PAP DB + manual overrides ──────────────
-  const fatPapAuto = readFatPapPoints();        // mainName → auto points
+  // ── 5. Fleet Points — from local fleet_points table + manual overrides ──
+  const fatPapAuto = readFleetPoints(corpId);   // characterName → points
   const fatPapOverrides = (() => {
     try { return JSON.parse(getSetting('health_fat_pap_overrides', '{}')); } catch { return {}; }
   })();

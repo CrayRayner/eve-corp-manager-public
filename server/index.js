@@ -53,7 +53,8 @@ app.use('/api/settings',   require('./routes/settings'));
 app.use('/api/kills',      require('./routes/kills'));
 app.use('/api/contracts',  require('./routes/contracts'));
 app.use('/api/extractions', require('./routes/extractions'));
-app.use('/api/health',     require('./routes/health'));
+app.use('/api/fleet-points', require('./routes/fleet-points'));
+app.use('/api/health',       require('./routes/health'));
 app.use('/api',            require('./routes/dashboard'));  // /api/summary, /api/snapshots
 
 // SPA fallback

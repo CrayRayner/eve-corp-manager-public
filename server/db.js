@@ -265,6 +265,16 @@ CREATE TABLE IF NOT EXISTS corp_contracts (
 
 CREATE INDEX IF NOT EXISTS idx_cc_status  ON corp_contracts(status);
 CREATE INDEX IF NOT EXISTS idx_cc_issued  ON corp_contracts(date_issued);
+
+CREATE TABLE IF NOT EXISTS fleet_points (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  corporation_id  INTEGER NOT NULL,
+  period_month    TEXT NOT NULL,
+  character_name  TEXT NOT NULL,
+  fat_count       INTEGER NOT NULL DEFAULT 0,
+  pap_count       INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(corporation_id, period_month, character_name)
+);
 `);
 
 // Schema migrations (add columns added after initial deploy)

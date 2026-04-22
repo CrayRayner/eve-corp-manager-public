@@ -70,6 +70,7 @@
     <div class="nav-tab" data-tab="kills">Corp Kills</div>
     <div class="nav-tab" data-tab="contracts">Contracts <span id="contracts-new-badge" class="badge badge-warning" style="display:none;font-size:10px;padding:1px 5px;vertical-align:middle"></span></div>
     <div class="nav-tab" data-tab="moon-timers">Moon Timers</div>
+    <div class="nav-tab" data-tab="fleet-points">Fleet Points</div>
     <div class="nav-tab" data-tab="health">Member Health</div>
     <div class="nav-tab" data-tab="settings">Settings</div>
   </nav>
@@ -451,6 +452,47 @@
             style="flex:1;min-width:260px;padding:6px 10px;font-size:0.82rem;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:4px">
           <button type="button" class="btn btn-primary btn-small" id="btn-save-discord-webhook">Save</button>
           <span id="discord-webhook-save-status" style="font-size:0.78rem"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── FLEET POINTS ────────────────────────── -->
+    <div class="tab-panel" id="tab-fleet-points">
+      <div style="display:flex;gap:16px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+        <div class="card kpi" style="min-width:130px"><div class="label">Imported Month</div><div class="value" id="fp-current-month">—</div></div>
+        <div class="card kpi" style="min-width:130px"><div class="label">Characters</div><div class="value" id="fp-char-count">—</div></div>
+        <div class="card kpi" style="min-width:130px"><div class="label">Total Points</div><div class="value" id="fp-total-points">—</div></div>
+      </div>
+      <div class="card mb-20">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Import Fleet Points</span>
+          <button class="btn btn-ghost btn-small" onclick="openFleetPointsImport()">+ Import CSV</button>
+        </div>
+        <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:14px">
+          Import monthly fleet participation data. Format: <code style="color:var(--accent)">CharacterName,FAT,PAP</code> (one per line).<br>
+          The most recently imported month is used for Member Health scores.
+        </p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+          <label style="font-size:0.8rem;color:var(--text-dim)">View month:</label>
+          <select id="fp-month-select" class="input" style="width:140px" onchange="loadFleetPointsMonth(this.value)">
+            <option value="">— none —</option>
+          </select>
+          <button id="fp-delete-btn" class="btn btn-ghost btn-small" style="display:none" onclick="armDeleteFleetMonth()">Delete Month</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:left">Character</th>
+                <th style="text-align:center">FAT</th>
+                <th style="text-align:center">PAP</th>
+                <th style="text-align:center">Total Pts</th>
+              </tr>
+            </thead>
+            <tbody id="fp-tbody">
+              <tr><td colspan="4" class="empty">No data imported yet.</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -889,53 +931,68 @@
 <div id="tutorial-modal" style="display:none;position:fixed;inset:0;background:rgba(4,8,16,.88);
   align-items:center;justify-content:center;z-index:9998;overflow-y:auto;padding:24px 12px">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-    padding:32px 36px;max-width:560px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.7)">
-    <div style="font-size:1.2rem;font-weight:700;margin-bottom:6px;color:var(--accent)">First Steps — Corp Manager</div>
-    <div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:22px">Run through these once to get up and running.</div>
+    padding:32px 36px;max-width:580px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.7)">
+    <div style="font-size:1.2rem;font-weight:700;margin-bottom:4px;color:var(--accent)">Welcome to EVE Corp Manager</div>
+    <div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:24px">Five minutes of setup unlocks everything. You can reopen this guide anytime via the <strong style="color:var(--text)">? Tutorial</strong> button.</div>
 
-    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:28px">
+    <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:28px">
+
       <div style="display:flex;gap:14px;align-items:flex-start">
-        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--accent);color:#0a0f1e;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem">1</div>
+        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--accent);color:#0a0f1e;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;flex-shrink:0">1</div>
         <div>
-          <div style="font-weight:600;margin-bottom:2px">Trigger your first sync</div>
-          <div style="font-size:0.8rem;color:var(--text-dim);line-height:1.5">Go to <strong style="color:var(--text)">Settings → Sync Now</strong>. The first sync takes 1–2 minutes and pulls all structures, wallet, members, and market prices from ESI.</div>
+          <div style="font-weight:600;margin-bottom:3px">Run your first sync</div>
+          <div style="font-size:0.8rem;color:var(--text-dim);line-height:1.6">Click <strong style="color:var(--text)">⟳ Sync Now</strong> in the top bar. The first sync takes 1–2 minutes and pulls structures, wallet journal, members, assets, mining data, and live Jita prices from ESI. Subsequent syncs run automatically every hour.</div>
         </div>
       </div>
+
       <div style="display:flex;gap:14px;align-items:flex-start">
-        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--accent);color:#0a0f1e;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem">2</div>
+        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--accent);color:#0a0f1e;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;flex-shrink:0">2</div>
         <div>
-          <div style="font-weight:600;margin-bottom:2px">Overview tab</div>
-          <div style="font-size:0.8rem;color:var(--text-dim);line-height:1.5">Key KPIs at a glance: wallet balance, tax income, structure fuel status, corp kills, and active member count. Auto-refreshes every 60 seconds.</div>
+          <div style="font-weight:600;margin-bottom:3px">Import your Alt → Main mappings <span style="font-size:0.7rem;font-weight:400;color:var(--accent);margin-left:6px">do this early</span></div>
+          <div style="font-size:0.8rem;color:var(--text-dim);line-height:1.6">Go to <strong style="color:var(--text)">Settings → Alt → Main Mappings</strong> and import a CSV with one <code style="color:var(--gold)">AltName,MainName</code> pair per line. Once imported, <em>every</em> leaderboard — tax, mining, kills, member health — aggregates alts under their main. Without this, alts appear as separate entries.</div>
         </div>
       </div>
+
       <div style="display:flex;gap:14px;align-items:flex-start">
-        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--accent);color:#0a0f1e;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem">3</div>
+        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--accent);color:#0a0f1e;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;flex-shrink:0">3</div>
         <div>
-          <div style="font-weight:600;margin-bottom:2px">Structures + Metenox</div>
-          <div style="font-size:0.8rem;color:var(--text-dim);line-height:1.5">Track fuel timers and gas stock per structure. Metenox shows live profitability using Jita p99 prices. Use the ✏ button to rename locations shown as raw IDs.</div>
+          <div style="font-weight:600;margin-bottom:3px">Import fleet participation (Fleet Points tab)</div>
+          <div style="font-size:0.8rem;color:var(--text-dim);line-height:1.6">Each month, export your FAT/PAP data from your fleet tool and import it via <strong style="color:var(--text)">Fleet Points → Import CSV</strong>. Format: <code style="color:var(--gold)">CharacterName,FAT,PAP</code>. The most recent month feeds into Member Health scores automatically. One import per month — re-importing replaces that month's data.</div>
         </div>
       </div>
+
       <div style="display:flex;gap:14px;align-items:flex-start">
-        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--accent);color:#0a0f1e;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem">4</div>
+        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--accent);color:#0a0f1e;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;flex-shrink:0">4</div>
         <div>
-          <div style="font-weight:600;margin-bottom:2px">Alt → Main mappings</div>
-          <div style="font-size:0.8rem;color:var(--text-dim);line-height:1.5">Go to <strong style="color:var(--text)">Settings → Alt → Main Mappings</strong> and import a CSV (format: AltName,MainName). All leaderboards — tax, mining, kills — then aggregate by main character.</div>
+          <div style="font-weight:600;margin-bottom:3px">Configure Member Health weights</div>
+          <div style="font-size:0.8rem;color:var(--text-dim);line-height:1.6">Go to <strong style="color:var(--text)">Settings → Member Health</strong> and adjust the score weights (Tax, Kills, Activity, Fleet Points) to match your corp's priorities. Set Fleet Points weight to 0 if you don't use fleet tracking. The health score drives the Active / At Risk / Inactive classification shown in the Member Health tab.</div>
         </div>
       </div>
+
       <div style="display:flex;gap:14px;align-items:flex-start">
-        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--accent);color:#0a0f1e;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem">5</div>
+        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--accent);color:#0a0f1e;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;flex-shrink:0">5</div>
         <div>
-          <div style="font-weight:600;margin-bottom:2px">Notifications</div>
-          <div style="font-size:0.8rem;color:var(--text-dim);line-height:1.5">Set up a Discord webhook or SMTP email in <strong style="color:var(--text)">Settings → Notifications</strong> to get alerted when fuel or gas runs low. Alerts fire after every sync.</div>
+          <div style="font-weight:600;margin-bottom:3px">Structures, Metenox &amp; Moon Timers</div>
+          <div style="font-size:0.8rem;color:var(--text-dim);line-height:1.6">Track fuel timers, gas stock, and structure states in the <strong style="color:var(--text)">Structures</strong> tab. <strong style="color:var(--text)">Metenox</strong> shows live profitability per drill using Jita p99 prices — use the price-factor slider for conservative estimates. <strong style="color:var(--text)">Moon Timers</strong> shows chunk arrival times and lets you post them to a Discord channel via webhook.</div>
         </div>
       </div>
+
       <div style="display:flex;gap:14px;align-items:flex-start">
-        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--accent);color:#0a0f1e;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem">6</div>
+        <div style="min-width:28px;height:28px;border-radius:50%;background:var(--accent);color:#0a0f1e;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;flex-shrink:0">6</div>
         <div>
-          <div style="font-weight:600;margin-bottom:2px">Customise visible tabs</div>
-          <div style="font-size:0.8rem;color:var(--text-dim);line-height:1.5">In <strong style="color:var(--text)">Settings → Visible Tabs</strong> you can hide tabs your corp doesn't use to keep the nav clean.</div>
+          <div style="font-weight:600;margin-bottom:3px">Low-fuel &amp; low-gas alerts</div>
+          <div style="font-size:0.8rem;color:var(--text-dim);line-height:1.6">In <strong style="color:var(--text)">Settings → Notifications</strong> add a Discord webhook URL or SMTP email. Alerts fire automatically after every sync when fuel or gas drops below the threshold you set.</div>
         </div>
       </div>
+
+      <div style="display:flex;gap:14px;align-items:flex-start">
+        <div style="min-width:28px;height:28px;border-radius:50%;background:rgba(26,212,123,.15);color:var(--accent);border:1px solid rgba(26,212,123,.3);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;flex-shrink:0">✓</div>
+        <div>
+          <div style="font-weight:600;margin-bottom:3px">Tidy up the navigation</div>
+          <div style="font-size:0.8rem;color:var(--text-dim);line-height:1.6">Under <strong style="color:var(--text)">Settings → Visible Tabs</strong> you can hide any tabs your corp doesn't use. All data is stored locally on this machine — nothing is sent anywhere except to ESI and zKillboard for live data.</div>
+        </div>
+      </div>
+
     </div>
 
     <div style="display:flex;justify-content:flex-end">
@@ -962,6 +1019,36 @@
   </div>
 </div>
 
+<!-- Fleet Points CSV import modal -->
+<div id="fp-import-modal" style="display:none;position:fixed;inset:0;background:rgba(4,8,16,.88);z-index:400;align-items:center;justify-content:center">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:28px 32px;max-width:520px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.6)">
+    <div style="font-size:1rem;font-weight:700;margin-bottom:6px">Import Fleet Points</div>
+    <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px">
+      Format: <code style="color:var(--accent)">CharacterName,FAT,PAP</code> per line. PAP column is optional.<br>
+      One import per month — existing data for the selected month will be replaced.
+    </p>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+      <div>
+        <label style="font-size:0.78rem;color:var(--text-dim);display:block;margin-bottom:4px">Month (YYYY-MM)</label>
+        <input id="fp-import-month" class="input" style="width:130px" placeholder="2026-04">
+      </div>
+      <div style="flex:1;min-width:160px">
+        <label style="font-size:0.78rem;color:var(--text-dim);display:block;margin-bottom:4px">Load from file</label>
+        <button class="btn btn-ghost btn-small" onclick="document.getElementById('fp-file-input').click()">Browse...</button>
+        <input type="file" id="fp-file-input" accept=".csv,.txt" style="display:none" onchange="loadFleetCsvFile(this)">
+      </div>
+    </div>
+    <textarea id="fp-import-text" class="input" rows="10"
+      style="font-family:monospace;font-size:0.78rem;resize:vertical;margin-bottom:10px"
+      placeholder="Cray Rayner,83,61&#10;Dartherion,3,25&#10;SomeAlt,10"></textarea>
+    <div id="fp-import-status" style="font-size:0.8rem;color:var(--text-dim);min-height:18px;margin-bottom:12px"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeFleetPointsImport()">Cancel</button>
+      <button class="btn btn-primary" onclick="doFleetPointsImport()">Import</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/charts.js"></script>
@@ -973,6 +1060,7 @@
 <script src="/js/kills.js"></script>
 <script src="/js/contracts.js"></script>
 <script src="/js/extractions.js"></script>
+<script src="/js/fleet-points.js"></script>
 <script src="/js/health.js"></script>
 <script src="/js/settings.js"></script>
 <script src="/js/app.js"></script>

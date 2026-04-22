@@ -83,9 +83,9 @@ router.get('/me', (req, res) => {
       'SELECT corporation_id, corporation_name FROM tokens ORDER BY expires_at DESC LIMIT 1'
     ).get();
     return res.json({
-      loggedIn:      false,
-      lastCorpId:    last?.corporation_id   || null,
-      lastCorpName:  last?.corporation_name || null,
+      loggedIn:     false,
+      lastCorpId:   last?.corporation_id   || null,
+      lastCorpName: last?.corporation_name || null,
     });
   }
 

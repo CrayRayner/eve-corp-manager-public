@@ -167,12 +167,14 @@ router.get('/backup', requireAuth, (req, res) => {
 });
 
 const uploadDir = path.join(path.dirname(DB_PATH), 'upload');
-const upload = multer({ dest: uploadDir, limits: { fileSize: 200 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.diskStorage({ destination: (_req, _file, cb) => { fs.mkdirSync(uploadDir, { recursive: true }); cb(null, uploadDir); } }),
+  limits: { fileSize: 200 * 1024 * 1024 },
+});
 
 const SQLITE_MAGIC = Buffer.from('SQLite format 3\0', 'utf8');
 
 router.post('/restore', requireAuth, (req, res, next) => {
-  fs.mkdirSync(uploadDir, { recursive: true });
   upload.single('file')(req, res, (err) => {
     if (err) return next(err);
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });

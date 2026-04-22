@@ -25,7 +25,7 @@ function setupEnvironment() {
   //  • is writable (C:\Program Files is not)
   //  • is per-user on multi-user machines
   process.env.DB_PATH       = path.join(userData, 'corp.db');
-  process.env.USER_DATA_PATH = userData; // used by health route to locate fat-pap-manager DB
+  process.env.USER_DATA_PATH = userData;
 
   // If a restore file was left by Settings → Restore, apply it before the server opens the DB
   const dbPath = process.env.DB_PATH;
@@ -49,22 +49,20 @@ function setupEnvironment() {
   // ── Production first-launch setup ─────────────────────────────────────────
   // The bundled .env (in resources/) contains EVE_CLIENT_ID baked in at
   // build time. On first launch we copy it to userData and add a freshly
-  // generated SESSION_SECRET. This means each installation gets its own
-  // secret without any user-facing setup wizard.
+  // generated SESSION_SECRET. Each installation gets its own secret.
   const userEnvPath = path.join(userData, '.env');
 
   if (!fs.existsSync(userEnvPath)) {
     fs.mkdirSync(userData, { recursive: true });
 
-    // Pull EVE_CLIENT_ID from the bundled resources .env
-    let clientId     = '';
-    let callbackUrl  = `http://localhost:${PORT}/auth/callback`;
+    let clientId    = '';
+    let callbackUrl = `http://localhost:${PORT}/auth/callback`;
     const bundledEnv = path.join(process.resourcesPath, '.env');
 
     if (fs.existsSync(bundledEnv)) {
-      const src  = fs.readFileSync(bundledEnv, 'utf8');
-      const idM  = src.match(/^EVE_CLIENT_ID=(.+)$/m);
-      const cbM  = src.match(/^EVE_CALLBACK_URL=(.+)$/m);
+      const src = fs.readFileSync(bundledEnv, 'utf8');
+      const idM = src.match(/^EVE_CLIENT_ID=(.+)$/m);
+      const cbM = src.match(/^EVE_CALLBACK_URL=(.+)$/m);
       if (idM) clientId    = idM[1].trim();
       if (cbM) callbackUrl = cbM[1].trim();
     }
