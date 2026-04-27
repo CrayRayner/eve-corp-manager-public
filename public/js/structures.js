@@ -196,7 +196,7 @@ async function loadStructures() {
       const fuelDaysCell = s.fuelDaysLeft != null
         ? `<span class="${fuelClass(s.fuelDaysLeft)}">${s.fuelDaysLeft}d</span>` : '—';
 
-      let gasBar = '—', gasDaysCell = '—', gasAction = '';
+      let gasBar = '—', gasDaysCell = '—', gasExpiresCell = '—', gasAction = '';
       if (s.isMetenox) {
         const g = s.gas;
         gasBar = g?.daysLeft != null
@@ -204,6 +204,9 @@ async function loadStructures() {
           : '<span class="dim">Not set</span>';
         gasDaysCell = g?.daysLeft != null
           ? `<span class="${fuelClass(g.daysLeft)}">${g.daysLeft}d</span>`
+          : '<span class="dim">?</span>';
+        gasExpiresCell = g?.estimatedExpires
+          ? `<span class="${fuelClass(g.daysLeft)}">${fmtDate(g.estimatedExpires)}</span>`
           : '<span class="dim">?</span>';
         gasAction = `<button class="btn btn-ghost btn-small" onclick="openGasModal(${s.structureId},'${s.name.replace(/'/g, "\\'")}',${JSON.stringify(s.gas || {}).replace(/"/g, '&quot;')})">💨 Gas</button>`;
       }
@@ -217,6 +220,7 @@ async function loadStructures() {
         <td>${fuelBar}</td>
         <td class="text-right isk">${s.fuelPerMonth != null ? s.fuelPerMonth.toLocaleString() : '—'} <button type="button" class="btn btn-ghost btn-small structure-fuel-edit" style="padding:2px 6px;font-size:0.7rem;margin-left:4px" data-structure-id="${s.structureId}" data-fuel-value="${s.fuelPerMonth != null ? s.fuelPerMonth : ''}" data-override="${s.fuelOverride ? '1' : '0'}" data-name="${(s.name || '').replace(/"/g, '&quot;')}" title="Override fuel/mo (leave empty for automatic)">✏️</button></td>
         <td class="text-right">${gasDaysCell}</td>
+        <td class="text-right dim">${gasExpiresCell}</td>
         <td>${gasBar}</td>
         <td>${gasAction}</td>
       </tr>`;
@@ -230,13 +234,14 @@ async function loadStructures() {
       <td></td><td></td><td></td>
       <td class="isk" title="Fuel blocks per month from online service modules."><strong>${totalFuelPerMonth.toLocaleString()} fuel/mo</strong></td>
       <td></td>
+      <td></td>
       <td class="isk" title="Metenox gas units per month (Settings → Gas consumption per month)."><strong>${gasPerMonth.toLocaleString()} gas/mo</strong></td>
       <td></td>
     </tr>`;
 
   } catch (err) {
     document.getElementById('structures-tbody').innerHTML =
-      `<tr><td colspan="10" class="alert alert-error">Error: ${esc(err.message)}</td></tr>`;
+      `<tr><td colspan="11" class="alert alert-error">Error: ${esc(err.message)}</td></tr>`;
   }
 }
 
