@@ -69,7 +69,6 @@
     <div class="nav-tab" data-tab="wallet">Wallet &amp; Tax</div>
     <div class="nav-tab" data-tab="kills">Corp Kills</div>
     <div class="nav-tab" data-tab="contracts">Contracts <span id="contracts-new-badge" class="badge badge-warning" style="display:none;font-size:10px;padding:1px 5px;vertical-align:middle"></span></div>
-    <div class="nav-tab" data-tab="moon-timers">Moon Timers</div>
     <div class="nav-tab" data-tab="fleet-points">Fleet Points</div>
     <div class="nav-tab" data-tab="health">Member Health</div>
     <div class="nav-tab" data-tab="settings">Settings</div>
@@ -440,27 +439,6 @@
           <p class="loading"><span class="spinner"></span></p>
         </div>
         <div id="contracts-pagination" style="margin-top:10px;display:flex;align-items:center;gap:8px;font-size:0.8rem;color:var(--text-dim)"></div>
-      </div>
-    </div>
-
-    <!-- ─── MOON TIMERS ──────────────────────────── -->
-    <div class="tab-panel" id="tab-moon-timers">
-      <div class="card mb-20">
-        <div class="card-title">Moon Extraction Timers
-          <button type="button" class="btn btn-ghost btn-small" id="btn-post-discord" style="margin-left:12px">Post to Discord</button>
-          <span id="discord-post-status" style="margin-left:10px;font-size:0.78rem"></span>
-        </div>
-        <div id="extractions-content"><div class="loading"><span class="spinner"></span> Loading…</div></div>
-      </div>
-      <div class="card mb-20">
-        <div class="card-title">Discord Webhook</div>
-        <p style="font-size:0.78rem;color:var(--text-dim);margin-bottom:12px">Paste a Discord webhook URL to post moon timer status. Create one in Discord: Channel → Edit → Integrations → Webhooks.</p>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input type="url" id="moon-discord-webhook" placeholder="https://discord.com/api/webhooks/…"
-            style="flex:1;min-width:260px;padding:6px 10px;font-size:0.82rem;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:4px">
-          <button type="button" class="btn btn-primary btn-small" id="btn-save-discord-webhook">Save</button>
-          <span id="discord-webhook-save-status" style="font-size:0.78rem"></span>
-        </div>
       </div>
     </div>
 
@@ -1104,7 +1082,6 @@
 <script src="/js/inventory.js"></script>
 <script src="/js/kills.js"></script>
 <script src="/js/contracts.js"></script>
-<script src="/js/extractions.js"></script>
 <script src="/js/fleet-points.js"></script>
 <script src="/js/health.js"></script>
 <script src="/js/settings.js"></script>

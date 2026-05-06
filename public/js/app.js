@@ -159,7 +159,6 @@ function loadTabContent(name) {
     case 'mining':     loadMining();      break;
     case 'kills':        loadKills();             break;
     case 'contracts':    loadContracts();          break;
-    case 'moon-timers':  loadExtractions();        break;
     case 'fleet-points': loadFleetPointsTab();     break;
     case 'health':       loadHealth();             break;
     case 'settings':     loadSettings();           break;
@@ -176,7 +175,6 @@ function refreshTab(name) {
     case 'mining':       loadMining();             break;
     case 'kills':        loadKills();              break;
     case 'contracts':    loadContracts();          break;
-    case 'moon-timers':  loadExtractions();        break;
     case 'fleet-points': loadFleetPointsTab();     break;
     case 'health':       loadHealth();             break;
     case 'settings':     loadSyncStatus();         break;

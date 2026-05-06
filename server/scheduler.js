@@ -24,7 +24,6 @@ async function runFullSync(characterId) {
     syncMemberTracking(characterId, corpId),
     syncMiningObservers(characterId, corpId),
     syncContracts(characterId, corpId),
-    syncExtractions(characterId, corpId),
     // Always sync Jita buy prices: fuel blocks + magmatic gas + all R4–R64 moon MATERIALS
     syncJitaBuyPrices([
       4051, 4246, 4247, 4312,     // Caldari / Gallente / Amarr / Minmatar Fuel Blocks
@@ -744,44 +743,6 @@ async function createMonthlySnapshot(characterId) {
   console.log(`[Snapshot] Created snapshot for ${month}`);
 }
 
-// ── Moon Extractions ──────────────────────────────────────────────────────────
-async function syncExtractions(characterId, corpId) {
-  try {
-    const data = await esiGetAll(`/corporations/${corpId}/mining/extractions/`, { characterId });
-
-    db.prepare('DELETE FROM moon_extractions WHERE corporation_id = ?').run(corpId);
-
-    const insert = db.prepare(`
-      INSERT OR REPLACE INTO moon_extractions
-        (structure_id, corporation_id, moon_id, extraction_start_time, chunk_arrival_time, natural_decay_time, synced_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    const now = Date.now();
-    const moonIds = [];
-    for (const e of data) {
-      insert.run(
-        e.structure_id, corpId, e.moon_id,
-        e.extraction_start_time || null,
-        e.chunk_arrival_time    || null,
-        e.natural_decay_time    || null,
-        now
-      );
-      if (e.moon_id) moonIds.push(e.moon_id);
-    }
-
-    // Cache moon names
-    if (moonIds.length) {
-      await resolveNames(moonIds).catch(() => {});
-    }
-
-    setSyncStatus('extractions');
-    console.log(`[Sync] Extractions: ${data.length} records`);
-  } catch (err) {
-    setSyncStatus('extractions', err.message);
-    console.error('[Sync] Extractions error:', err.message);
-  }
-}
-
 // ── Cron Jobs ─────────────────────────────────────────────────────────────────
 let _characterId = null;
 
@@ -842,15 +803,9 @@ function startScheduler(characterId) {
     if (t) syncContracts(_characterId, t.corporation_id);
   });
 
-  // Extractions — every hour (offset 15 min)
-  cron.schedule('15 * * * *', () => {
-    const t = getToken(_characterId);
-    if (t) syncExtractions(_characterId, t.corporation_id);
-  });
-
   console.log('[Scheduler] Cron jobs started');
 }
 
 function updateSchedulerCharacter(characterId) { _characterId = characterId; }
 
-module.exports = { startScheduler, updateSchedulerCharacter, runFullSync, createMonthlySnapshot, syncKills, syncLosses, syncContracts, syncExtractions };
+module.exports = { startScheduler, updateSchedulerCharacter, runFullSync, createMonthlySnapshot, syncKills, syncLosses, syncContracts };
