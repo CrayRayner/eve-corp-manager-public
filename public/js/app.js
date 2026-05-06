@@ -69,6 +69,9 @@
     document.title = `${me.corporationName || 'EVE'} Dashboard`;
     setCorpLogo('hdr-logo', 'hdr-logo-text', me.corporationId, me.corporationName);
 
+    // Check cloud sync lock warning (non-blocking)
+    loadCloudSync().catch(() => {});
+
     // Load initial tab
     loadTabContent('overview');
 

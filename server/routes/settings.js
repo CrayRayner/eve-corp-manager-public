@@ -377,6 +377,88 @@ router.post('/mappings/csv', requireAuth, (req, res) => {
   res.json({ ok: true, imported, errors: errors.slice(0, 20) });
 });
 
+// ── Cloud Sync Settings ───────────────────────────────────────────────────────
+
+const cloudSync = require('../cloud-sync');
+
+// GET /api/settings/cloud-sync
+router.get('/cloud-sync', requireAuth, (req, res) => {
+  const cfg = cloudSync.loadConfig();
+  res.json({
+    enabled:     cfg.enabled,
+    url:         cfg.url,
+    displayName: cfg.displayName,
+    secretSet:   !!cfg.secretEnc,
+    baseVersion: cfg.baseVersion || 0,
+    lockWarning: cfg.lockWarning || null,
+  });
+});
+
+// PUT /api/settings/cloud-sync
+router.put('/cloud-sync', requireAuth, (req, res) => {
+  const cfg = cloudSync.loadConfig();
+  if (req.body.enabled     !== undefined) cfg.enabled     = !!req.body.enabled;
+  if (req.body.url         !== undefined) cfg.url         = String(req.body.url || '').trim();
+  if (req.body.displayName !== undefined) cfg.displayName = String(req.body.displayName || 'Director').trim() || 'Director';
+  if (req.body.secret) cfg.secretEnc = encryptValue(req.body.secret);
+  cloudSync.saveConfig(cfg);
+  res.json({ ok: true });
+});
+
+// POST /api/settings/cloud-sync/test
+router.post('/cloud-sync/test', requireAuth, async (req, res) => {
+  const cfg = cloudSync.loadConfig();
+  if (!cfg.url || !cfg.secretEnc) return res.status(400).json({ error: 'URL and secret must be saved first.' });
+  try {
+    const status = await cloudSync.getStatus(cfg);
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/settings/cloud-sync/push
+router.post('/cloud-sync/push', requireAuth, async (req, res) => {
+  const cfg = cloudSync.loadConfig();
+  if (!cfg.enabled || !cfg.url || !cfg.secretEnc) return res.status(400).json({ error: 'Cloud sync not configured.' });
+  try {
+    const result = await cloudSync.upload(cfg, DB_PATH, !!req.body.force);
+    if (result.conflict && !req.body.force) {
+      return res.status(409).json({ conflict: true, uploadedBy: result.uploadedBy, uploadedAt: result.uploadedAt });
+    }
+    if (result.version) { cfg.baseVersion = result.version; cloudSync.saveConfig(cfg); }
+    res.json({ ok: true, version: result.version });
+  } catch (err) {
+    res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/settings/cloud-sync/pull
+router.post('/cloud-sync/pull', requireAuth, async (req, res) => {
+  const cfg = cloudSync.loadConfig();
+  if (!cfg.enabled || !cfg.url || !cfg.secretEnc) return res.status(400).json({ error: 'Cloud sync not configured.' });
+  const restorePath = DB_PATH + '.restore';
+  try {
+    const bytes = await cloudSync.download(cfg, restorePath);
+    const fd  = fs.openSync(restorePath, 'r');
+    const buf = Buffer.alloc(16);
+    fs.readSync(fd, buf, 0, 16, 0);
+    fs.closeSync(fd);
+    if (!buf.equals(Buffer.from('SQLite format 3\0', 'utf8'))) {
+      fs.unlinkSync(restorePath);
+      return res.status(400).json({ error: 'Remote file is not a valid SQLite database.' });
+    }
+    try {
+      const status = await cloudSync.getStatus(cfg);
+      if (status.version) { cfg.baseVersion = status.version; cloudSync.saveConfig(cfg); }
+    } catch {}
+    res.json({ ok: true, bytes, message: 'Remote database downloaded. Restart the app to apply.' });
+  } catch (err) {
+    try { fs.unlinkSync(restorePath); } catch {}
+    res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
 // GET /api/settings/discord
 router.get('/discord', requireAuth, (req, res) => {
   res.json({ webhookUrl: getSetting('discord_webhook_url', '') });

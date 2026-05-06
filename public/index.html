@@ -75,6 +75,13 @@
     <div class="nav-tab" data-tab="settings">Settings</div>
   </nav>
 
+  <!-- Cloud sync lock warning — shown only when another director has the app open -->
+  <div id="cloud-sync-banner" style="display:none;background:rgba(255,170,0,0.12);border-bottom:1px solid var(--gold);padding:7px 20px;font-size:0.8rem;color:var(--gold);align-items:center;gap:10px">
+    <span>⚠</span>
+    <span id="cloud-sync-banner-msg"></span>
+    <button class="btn btn-ghost btn-small" style="margin-left:auto;font-size:0.72rem" onclick="document.getElementById('cloud-sync-banner').style.display='none'">Dismiss</button>
+  </div>
+
   <main>
     <!-- ─── OVERVIEW ─────────────────────────────── -->
     <div class="tab-panel active" id="tab-overview">
@@ -622,6 +629,43 @@
           </div>
         </div>
       </div>
+
+      <!-- Cloud Sync -->
+        <div class="card">
+          <div class="card-title">Cloud Sync</div>
+          <p style="font-size:0.78rem;color:var(--text-dim);margin-bottom:14px;line-height:1.5">
+            Share your database with other directors via your webspace. All directors need the same sync URL and secret. On startup the app pulls the latest data; on close it pushes local changes back.
+          </p>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+            <input type="checkbox" id="sync-enabled" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)">
+            <label for="sync-enabled" style="font-size:0.85rem;cursor:pointer">Enable cloud sync</label>
+          </div>
+          <div id="sync-config-fields">
+            <div class="grid-2" style="gap:12px;margin-bottom:12px">
+              <div>
+                <label style="display:block;font-size:0.75rem;color:var(--text-dim);margin-bottom:4px">Sync URL</label>
+                <input id="sync-url" class="input" style="width:100%;box-sizing:border-box" placeholder="https://yourdomain.com/sync/sync.php">
+              </div>
+              <div>
+                <label style="display:block;font-size:0.75rem;color:var(--text-dim);margin-bottom:4px">Your display name</label>
+                <input id="sync-display-name" class="input" style="width:100%;box-sizing:border-box" placeholder="e.g. Cray Rayner">
+              </div>
+            </div>
+            <div style="margin-bottom:14px">
+              <label style="display:block;font-size:0.75rem;color:var(--text-dim);margin-bottom:4px">Sync secret <span id="sync-secret-set-indicator" style="font-size:0.7rem;color:var(--green)"></span></label>
+              <input id="sync-secret" class="input" type="password" style="width:100%;box-sizing:border-box" placeholder="Enter shared secret (leave blank to keep current)">
+              <div style="font-size:0.71rem;color:var(--text-dim);margin-top:4px">Same secret in every director's app. Set in sync.php on your webspace.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+              <button class="btn btn-primary btn-small" onclick="saveCloudSync()">Save</button>
+              <button class="btn btn-ghost btn-small" onclick="testCloudSync()">Test Connection</button>
+              <button class="btn btn-ghost btn-small" onclick="pushCloudSync()">Push to Remote</button>
+              <button class="btn btn-ghost btn-small" onclick="pullCloudSync()">Pull from Remote</button>
+            </div>
+            <div id="cloud-sync-feedback" style="font-size:0.78rem;min-height:22px"></div>
+            <div id="cloud-sync-status" style="font-size:0.75rem;color:var(--text-dim);margin-top:8px"></div>
+          </div>
+        </div>
 
       <!-- Corporation Tax & LP Rates (optional — shown on Wallet tab) -->
       <div class="card mb-20">

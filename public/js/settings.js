@@ -437,6 +437,135 @@ document.getElementById('btn-show-tutorial').addEventListener('click', () => {
   showTutorialModal(); // defined in app.js
 });
 
+// ── Cloud Sync ────────────────────────────────────────────────────────────────
+
+async function loadCloudSync() {
+  try {
+    const cfg = await api.get('/api/settings/cloud-sync');
+    document.getElementById('sync-enabled').checked          = !!cfg.enabled;
+    document.getElementById('sync-url').value                = cfg.url || '';
+    document.getElementById('sync-display-name').value       = cfg.displayName || '';
+    document.getElementById('sync-secret').placeholder       = cfg.secretSet ? '••••••••  (saved)' : 'Enter shared secret';
+    document.getElementById('sync-secret-set-indicator').textContent = cfg.secretSet ? '✓ saved' : '';
+
+    const statusEl = document.getElementById('cloud-sync-status');
+    if (cfg.baseVersion) {
+      statusEl.textContent = `Last synced: ${new Date(cfg.baseVersion * 1000).toLocaleString()}`;
+    } else {
+      statusEl.textContent = cfg.enabled ? 'Not yet synced.' : '';
+    }
+
+    const banner    = document.getElementById('cloud-sync-banner');
+    const bannerMsg = document.getElementById('cloud-sync-banner-msg');
+    if (cfg.lockWarning && cfg.lockWarning.lockedBy && banner) {
+      const since = cfg.lockWarning.lockedAt
+        ? new Date(cfg.lockWarning.lockedAt * 1000).toLocaleTimeString()
+        : 'recently';
+      bannerMsg.textContent = `${esc(cfg.lockWarning.lockedBy)} has the app open (lock acquired ${since}). Changes may conflict on close.`;
+      banner.style.display = 'flex';
+    }
+  } catch (err) { console.error('Cloud sync load error:', err); }
+}
+
+async function saveCloudSync() {
+  const fb   = document.getElementById('cloud-sync-feedback');
+  const body = {
+    enabled:     document.getElementById('sync-enabled').checked,
+    url:         document.getElementById('sync-url').value.trim(),
+    displayName: document.getElementById('sync-display-name').value.trim(),
+  };
+  const secret = document.getElementById('sync-secret').value;
+  if (secret) body.secret = secret;
+  try {
+    await api.put('/api/settings/cloud-sync', body);
+    document.getElementById('sync-secret').value = '';
+    fb.innerHTML = '<span class="alert alert-ok" style="padding:2px 8px">Saved.</span>';
+    loadCloudSync();
+    setTimeout(() => { fb.innerHTML = ''; }, 3000);
+  } catch (err) {
+    fb.innerHTML = `<span class="alert alert-error" style="padding:2px 8px">${esc(err.message)}</span>`;
+  }
+}
+
+async function testCloudSync() {
+  const fb = document.getElementById('cloud-sync-feedback');
+  fb.innerHTML = '<span class="dim">Testing…</span>';
+  try {
+    const res = await api.post('/api/settings/cloud-sync/test');
+    if (res.ok) {
+      const s = res.status;
+      const remoteInfo = s.version
+        ? ` Remote version: ${new Date(s.version * 1000).toLocaleString()}, size: ${(s.size / 1024).toFixed(0)} KB`
+        : s.exists ? ' Remote DB exists.' : ' No remote DB yet.';
+      const lockInfo = s.lockedBy ? ` Lock held by: ${esc(s.lockedBy)}.` : '';
+      fb.innerHTML = `<span class="alert alert-ok" style="padding:2px 8px">✓ Connected.${esc(remoteInfo)}${lockInfo}</span>`;
+    } else {
+      fb.innerHTML = `<span class="alert alert-error" style="padding:2px 8px">Failed: ${esc(res.error)}</span>`;
+    }
+  } catch (err) {
+    fb.innerHTML = `<span class="alert alert-error" style="padding:2px 8px">${esc(err.message)}</span>`;
+  }
+  setTimeout(() => { fb.innerHTML = ''; }, 8000);
+}
+
+async function pushCloudSync() {
+  const fb = document.getElementById('cloud-sync-feedback');
+  fb.innerHTML = '<span class="dim">Uploading…</span>';
+  try {
+    const res = await api.post('/api/settings/cloud-sync/push');
+    if (res.ok) {
+      fb.innerHTML = `<span class="alert alert-ok" style="padding:2px 8px">✓ Pushed. Version: ${new Date((res.version || 0) * 1000).toLocaleString()}</span>`;
+      loadCloudSync();
+    } else if (res.conflict) {
+      fb.innerHTML = `<div class="alert alert-warn" style="padding:6px 8px">
+        ⚠ Conflict: remote was last updated by <strong>${esc(res.uploadedBy || '?')}</strong> at ${esc(res.uploadedAt || '?')}.<br>
+        <button class="btn btn-danger btn-small" style="margin-top:6px" onclick="pushCloudSyncForce()">Force overwrite remote</button>
+        <button class="btn btn-ghost btn-small" style="margin-top:6px;margin-left:6px" onclick="document.getElementById('cloud-sync-feedback').innerHTML=''">Cancel</button>
+      </div>`;
+      return;
+    } else {
+      fb.innerHTML = `<span class="alert alert-error" style="padding:2px 8px">${esc(res.error || 'Unknown error')}</span>`;
+    }
+  } catch (err) {
+    fb.innerHTML = `<span class="alert alert-error" style="padding:2px 8px">${esc(err.message)}</span>`;
+  }
+  setTimeout(() => { fb.innerHTML = ''; }, 5000);
+}
+
+async function pushCloudSyncForce() {
+  const fb = document.getElementById('cloud-sync-feedback');
+  fb.innerHTML = '<span class="dim">Force uploading…</span>';
+  try {
+    const res = await api.post('/api/settings/cloud-sync/push', { force: true });
+    if (res.ok) {
+      fb.innerHTML = `<span class="alert alert-ok" style="padding:2px 8px">✓ Force-pushed. Remote overwritten.</span>`;
+      loadCloudSync();
+    } else {
+      fb.innerHTML = `<span class="alert alert-error" style="padding:2px 8px">${esc(res.error || 'Failed')}</span>`;
+    }
+  } catch (err) {
+    fb.innerHTML = `<span class="alert alert-error" style="padding:2px 8px">${esc(err.message)}</span>`;
+  }
+  setTimeout(() => { fb.innerHTML = ''; }, 5000);
+}
+
+async function pullCloudSync() {
+  const fb = document.getElementById('cloud-sync-feedback');
+  fb.innerHTML = '<span class="dim">Downloading from remote…</span>';
+  try {
+    const res = await api.post('/api/settings/cloud-sync/pull');
+    if (res.ok) {
+      fb.innerHTML = `<div class="alert alert-ok" style="padding:6px 8px">
+        ✓ Downloaded (${((res.bytes || 0) / 1024).toFixed(0)} KB). <strong>Restart the app to apply the remote database.</strong>
+      </div>`;
+    } else {
+      fb.innerHTML = `<span class="alert alert-error" style="padding:2px 8px">${esc(res.error || 'Failed')}</span>`;
+    }
+  } catch (err) {
+    fb.innerHTML = `<span class="alert alert-error" style="padding:2px 8px">${esc(err.message)}</span>`;
+  }
+}
+
 function loadSettings() {
   loadMappings();
   loadSyncStatus();
@@ -446,6 +575,7 @@ function loadSettings() {
   loadNotificationSettings();
   loadFuelHangar();
   loadCorpRates();
+  loadCloudSync();
 }
 
 // ── Display (color blind, date format, fuel month hours) ───────────────────────

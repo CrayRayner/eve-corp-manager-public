@@ -81,11 +81,67 @@ function setupEnvironment() {
 
 setupEnvironment();
 
-// ── Start Express server ───────────────────────────────────────────────────────
-// server/index.js starts listening and exports a `ready` Promise that resolves
-// once the HTTP server is up. We await it before opening the window so the
-// page is never blank on load.
-const { ready } = require('../server/index.js');
+// ── Cloud sync helpers (run before server opens the DB) ────────────────────────
+
+async function syncOnStartup() {
+  try {
+    const cloudSync = require('../server/cloud-sync');
+    const cfg = cloudSync.loadConfig();
+    if (!cfg.enabled || !cfg.url || !cfg.secretEnc) return;
+
+    const dbPath = process.env.DB_PATH;
+    console.log('[CloudSync] Checking remote status…');
+    const status = await cloudSync.getStatus(cfg).catch(e => { console.error('[CloudSync] Status check failed:', e.message); return null; });
+    if (!status) return;
+
+    const remoteVersion = status.version || 0;
+    const baseVersion   = cfg.baseVersion || 0;
+
+    if (status.exists && remoteVersion > baseVersion) {
+      console.log(`[CloudSync] Remote is newer (${remoteVersion} > ${baseVersion}), downloading…`);
+      await cloudSync.download(cfg, dbPath);
+      cfg.baseVersion = remoteVersion;
+      cloudSync.saveConfig(cfg);
+      console.log('[CloudSync] Downloaded remote DB');
+    } else {
+      console.log('[CloudSync] Local is up to date');
+    }
+
+    const lockResult = await cloudSync.acquireLock(cfg).catch(e => { console.error('[CloudSync] Lock failed:', e.message); return null; });
+    cfg.lockWarning = (lockResult && !lockResult.ok) ? lockResult : null;
+    cloudSync.saveConfig(cfg);
+    if (cfg.lockWarning) console.warn(`[CloudSync] Lock held by: ${cfg.lockWarning.lockedBy}`);
+  } catch (err) {
+    console.error('[CloudSync] Startup sync error (non-fatal):', err.message);
+  }
+}
+
+async function syncOnClose() {
+  try {
+    const cloudSync = require('../server/cloud-sync');
+    const cfg = cloudSync.loadConfig();
+    if (!cfg.enabled || !cfg.url || !cfg.secretEnc) return;
+    const dbPath = process.env.DB_PATH;
+    if (!dbPath || !fs.existsSync(dbPath)) return;
+
+    console.log('[CloudSync] Uploading on close…');
+    const result = await cloudSync.upload(cfg, dbPath, false);
+
+    if (result.conflict) {
+      console.warn('[CloudSync] Conflict on close — force-uploading local version');
+      const forced = await cloudSync.upload(cfg, dbPath, true);
+      if (forced.version) cfg.baseVersion = forced.version;
+    } else if (result.version) {
+      cfg.baseVersion = result.version;
+    }
+
+    await cloudSync.releaseLock(cfg);
+    cloudSync.saveConfig(cfg);
+    console.log('[CloudSync] Close upload complete');
+  } catch (err) {
+    console.error('[CloudSync] Close sync error (non-fatal):', err.message);
+  }
+}
 
 // ── Window & Tray ──────────────────────────────────────────────────────────────
 let mainWindow = null;
@@ -180,7 +236,13 @@ function createTray() {
 
 // ── App lifecycle ──────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
-  // Wait for Express to be listening before opening the window
+  // 1. Cloud sync: pull remote DB if it's newer (must run BEFORE the server opens the DB)
+  await syncOnStartup();
+
+  // 2. Start Express server (opens SQLite, loads all routes)
+  const { ready } = require('../server/index.js');
+
+  // 3. Wait for server to be listening
   try {
     await ready;
   } catch (err) {
@@ -214,8 +276,14 @@ app.on('before-quit', () => {
 // Force-exit the Node.js process once Electron has finished shutting down.
 // Without this, the Express HTTP server and node-cron jobs keep the event
 // loop alive and the terminal hangs even after the window is gone.
-app.on('will-quit', () => {
-  process.exit(0);
+let _quitSyncDone = false;
+app.on('will-quit', (e) => {
+  if (_quitSyncDone) { process.exit(0); return; }
+  _quitSyncDone = true;
+  e.preventDefault();
+  syncOnClose()
+    .catch(err => console.error('[CloudSync] will-quit error:', err.message))
+    .finally(() => process.exit(0));
 });
 
 // macOS: re-create window when dock icon is clicked and no window is open

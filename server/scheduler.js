@@ -49,6 +49,9 @@ async function runFullSync(characterId) {
   const { checkAndNotify } = require('./notifications');
   await checkAndNotify().catch(e => console.error('[Notifications] checkAndNotify error:', e.message));
 
+  // Push to cloud sync if enabled (fire-and-forget, non-fatal)
+  require('./cloud-sync').backgroundUpload();
+
   console.log('[Sync] Full sync complete');
 }
 
