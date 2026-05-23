@@ -189,7 +189,18 @@ async function loadStructures() {
 
     // Render rows
     tbody.innerHTML = data.map(s => {
-      const typeColor = s.typeId === 81826 ? 'var(--green)' : s.typeId === 35835 ? 'var(--gold)' : 'var(--blue)';
+      if (s.missing) {
+        return `<tr style="opacity:0.65">
+          <td><strong>${esc(s.name)}</strong> <span class="badge badge-red" style="margin-left:6px">MISSING</span></td>
+          <td class="dim">${esc(s.typeName)}</td>
+          <td class="dim">${esc(s.systemName)}</td>
+          <td colspan="7" class="dim" style="font-size:0.75rem">Structure no longer in corp — transferred or unanchored</td>
+          <td><button class="btn btn-danger btn-small" data-armed="0"
+              onclick="armDeleteStructure(this,${s.structureId},'${s.name.replace(/'/g,"\\'")}')">Remove</button></td>
+        </tr>`;
+      }
+
+      const typeColor = s.typeId === 81826 ? 'var(--green)' : s.typeId === 35835 ? 'var(--gold)' : 'var(--accent)';
       const fuelBar = s.fuelDaysLeft != null
         ? `<div class="bar-outer"><div class="bar-fill ${fuelBarClass(s.fuelDaysLeft)}" style="width:${barPct(s.fuelDaysLeft)}%"></div></div>`
         : '—';
@@ -226,9 +237,10 @@ async function loadStructures() {
       </tr>`;
     }).join('');
 
-    // Footer totals — fuel/mo and gas/mo from API (fuel = sum of per-structure consumption from online services)
-    const totalFuelPerMonth = data.reduce((s, r) => s + (r.fuelPerMonth || 0), 0);
-    const gasPerMonth   = data.filter(r => r.isMetenox).length * gasConsumptionPerMonth;
+    // Footer totals — active structures only (exclude missing)
+    const active = data.filter(r => !r.missing);
+    const totalFuelPerMonth = active.reduce((s, r) => s + (r.fuelPerMonth || 0), 0);
+    const gasPerMonth   = active.filter(r => r.isMetenox).length * gasConsumptionPerMonth;
     tfoot.innerHTML = `<tr>
       <td colspan="3"><strong>Totals</strong></td>
       <td></td><td></td><td></td>
@@ -383,3 +395,35 @@ document.getElementById('loc-rename-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('loc-rename-save').click();
   if (e.key === 'Escape') document.getElementById('loc-rename-cancel').click();
 });
+
+// ── Missing structure removal ─────────────────────────────────────────────────
+function armDeleteStructure(btn, id, name) {
+  if (btn.dataset.armed === '1') {
+    deleteStructureRecord(id);
+  } else {
+    btn.dataset.armed = '1';
+    btn.textContent = 'Confirm?';
+    btn.style.background = 'var(--red)';
+    btn.style.color = '#fff';
+    setTimeout(() => {
+      if (btn.dataset.armed === '1') {
+        btn.dataset.armed = '0';
+        btn.textContent = 'Remove';
+        btn.style.background = '';
+        btn.style.color = '';
+      }
+    }, 3000);
+  }
+}
+
+async function deleteStructureRecord(id) {
+  try {
+    await api.del(`/api/structures/${id}`);
+    toast('Structure removed', 'success');
+    loadStructures();
+    loadMetenox();
+  } catch (err) {
+    toast('Remove failed: ' + err.message, 'error');
+  }
+}
+

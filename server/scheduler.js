@@ -65,13 +65,14 @@ async function syncStructures(characterId, corpId) {
       const name = s.name || await resolveStructureName(s.structure_id, characterId);
 
       db.prepare(`
-        INSERT INTO structures (structure_id, name, type_id, type_name, system_id, system_name, fuel_expires, services, state, corporation_id, synced_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO structures (structure_id, name, type_id, type_name, system_id, system_name, fuel_expires, services, state, corporation_id, synced_at, missing)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         ON CONFLICT(structure_id) DO UPDATE SET
           name = excluded.name, type_id = excluded.type_id, type_name = excluded.type_name,
           system_id = excluded.system_id, system_name = excluded.system_name,
           fuel_expires = excluded.fuel_expires, services = excluded.services,
-          state = excluded.state, corporation_id = excluded.corporation_id, synced_at = excluded.synced_at
+          state = excluded.state, corporation_id = excluded.corporation_id,
+          synced_at = excluded.synced_at, missing = 0
       `).run(s.structure_id, name, s.type_id, typeName, s.system_id, systemName,
              s.fuel_expires || null, JSON.stringify(s.services || []),
              s.state || null, corpId, Math.floor(Date.now() / 1000));
@@ -84,6 +85,14 @@ async function syncStructures(characterId, corpId) {
         `).run(s.structure_id);
       }
     }
+    // Mark any structures in DB that ESI didn't return as missing (transferred/unanchored)
+    if (data.length > 0) {
+      const returnedIds  = data.map(s => s.structure_id);
+      const placeholders = returnedIds.map(() => '?').join(',');
+      db.prepare(`UPDATE structures SET missing = 1 WHERE corporation_id = ? AND structure_id NOT IN (${placeholders})`).run(corpId, ...returnedIds);
+    }
+    // If ESI returned 0 results don't mark anything missing — likely a permissions/ESI error
+
     setSyncStatus('structures');
     console.log(`[Sync] Structures: ${data.length} synced`);
   } catch (err) {
@@ -742,6 +751,7 @@ async function createMonthlySnapshot(characterId) {
 
   console.log(`[Snapshot] Created snapshot for ${month}`);
 }
+
 
 // ── Cron Jobs ─────────────────────────────────────────────────────────────────
 let _characterId = null;

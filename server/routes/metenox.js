@@ -152,13 +152,16 @@ router.get('/', requireAuth, (req, res) => {
       monthlyCost:     monthlyCost,
       monthlyProfit:   Math.round(monthlyRevenue - monthlyCost),
       profitable:      monthlyRevenue > monthlyCost,
+      missing:         s.missing === 1,
     };
   });
 
+  // Exclude missing structures from totals
+  const active = result.filter(s => !s.missing);
   const totals = {
-    totalRevenue: result.reduce((a, b) => a + b.monthlyRevenue, 0),
-    totalCost:    result.reduce((a, b) => a + b.monthlyCost,    0),
-    totalProfit:  result.reduce((a, b) => a + b.monthlyProfit,  0),
+    totalRevenue: active.reduce((a, b) => a + b.monthlyRevenue, 0),
+    totalCost:    active.reduce((a, b) => a + b.monthlyCost,    0),
+    totalProfit:  active.reduce((a, b) => a + b.monthlyProfit,  0),
   };
 
   const priceRow = db.prepare('SELECT MIN(updated_at) AS oldest FROM market_prices WHERE jita_buy_max IS NOT NULL').get();

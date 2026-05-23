@@ -65,6 +65,18 @@ function renderMetenoxTable() {
   }
 
   tbody.innerHTML = sorted.map(s => {
+    if (s.missing) {
+      return `<tr style="opacity:0.65">
+        <td><strong>${esc(s.name)}</strong> <span class="badge badge-red" style="margin-left:6px">MISSING</span></td>
+        <td class="dim">${esc(s.systemName)}</td>
+        <td colspan="5" class="dim" style="font-size:0.75rem">Structure no longer in corp — transferred or unanchored</td>
+        <td class="text-center">
+          <button class="btn btn-danger btn-small" data-armed="0"
+              onclick="armDeleteStructure(this,${s.structureId},'${s.name.replace(/'/g,"\\'")}')">Remove</button>
+        </td>
+      </tr>`;
+    }
+
     const profitClass = s.monthlyProfit > 0 ? 'green' : s.monthlyProfit < 0 ? 'red' : 'dim';
     const badge = s.monthlyProfit > 0
       ? '<span class="badge badge-green">Profitable</span>'
@@ -79,8 +91,8 @@ function renderMetenoxTable() {
         : '';
 
     return `<tr>
-      <td><strong>${s.name}</strong>${dataSource}${!hasData ? ' <span class="dim" style="font-size:0.7rem">(no price data)</span>' : ''}</td>
-      <td>${s.systemName}</td>
+      <td><strong>${esc(s.name)}</strong>${dataSource}${!hasData ? ' <span class="dim" style="font-size:0.7rem">(no price data)</span>' : ''}</td>
+      <td>${esc(s.systemName)}</td>
       <td class="text-right ${fuelClass(s.fuelDaysLeft)}">${s.fuelDaysLeft != null ? s.fuelDaysLeft.toFixed(1) + 'd' : '—'}</td>
       <td class="text-right isk">${hasData ? fmtISK(s.monthlyRevenue) + ' ISK' : '—'}</td>
       <td class="text-right" style="color:var(--red)">${fmtISK(s.monthlyCost)} ISK</td>

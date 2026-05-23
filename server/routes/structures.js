@@ -79,6 +79,7 @@ router.get('/', requireAuth, (req, res) => {
       isMetenox,
       gas,
       syncedAt:     s.synced_at,
+      missing:      s.missing === 1,
     };
   });
 
@@ -132,6 +133,23 @@ router.get('/expiries', requireAuth, (req, res) => {
 
   items.sort((a, b) => a.daysLeft - b.daysLeft);
   res.json(items);
+});
+
+// DELETE /api/structures/:id — remove a missing structure and all its related data
+router.delete('/:id', requireAuth, (req, res) => {
+  const id     = parseInt(req.params.id, 10);
+  const corpId = req.session.corporationId;
+  if (!id) return res.status(400).json({ error: 'Invalid id' });
+
+  const s = db.prepare('SELECT structure_id FROM structures WHERE structure_id = ? AND corporation_id = ?').get(id, corpId);
+  if (!s) return res.status(404).json({ error: 'Not found' });
+
+  db.prepare('DELETE FROM structures WHERE structure_id = ?').run(id);
+  db.prepare('DELETE FROM structure_gas WHERE structure_id = ?').run(id);
+  db.prepare('DELETE FROM metenox_manual_materials WHERE structure_id = ?').run(id);
+  db.prepare('DELETE FROM notification_settings WHERE key = ?').run(`structure_fuel_override_${id}`);
+
+  res.json({ ok: true });
 });
 
 // PUT /api/structures/:id/fuel-override — set or clear manual fuel/mo for a structure (null/empty = use automatic)
