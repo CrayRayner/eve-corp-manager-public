@@ -156,14 +156,23 @@ router.get('/sync-errors', requireAuth, (req, res) => {
   res.json(errors);
 });
 
-// GET /api/settings/backup — stream the database file for download
-router.get('/backup', requireAuth, (req, res) => {
+// GET /api/settings/backup — create a safe consistent backup using SQLite's backup API
+router.get('/backup', requireAuth, async (req, res) => {
   if (!fs.existsSync(DB_PATH)) return res.status(404).json({ error: 'Database not found' });
-  const name = path.basename(DB_PATH);
-  res.setHeader('Content-Type', 'application/octet-stream');
-  res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
-  const stream = fs.createReadStream(DB_PATH);
-  stream.pipe(res);
+  const tmpPath = DB_PATH + '.backup-tmp';
+  try {
+    // db.backup() uses SQLite's online backup API — safe with WAL, always consistent
+    await db.backup(tmpPath);
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="corp-backup-${date}.db"`);
+    const stream = fs.createReadStream(tmpPath);
+    stream.pipe(res);
+    stream.on('close', () => { try { fs.unlinkSync(tmpPath); } catch {} });
+  } catch (err) {
+    try { fs.unlinkSync(tmpPath); } catch {}
+    res.status(500).json({ error: 'Backup failed: ' + err.message });
+  }
 });
 
 const uploadDir = path.join(path.dirname(DB_PATH), 'upload');
@@ -180,7 +189,10 @@ router.post('/restore', requireAuth, (req, res, next) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const restorePath = DB_PATH + '.restore';
     try {
-      const buf = fs.readFileSync(req.file.path, { start: 0, end: SQLITE_MAGIC.length });
+      const fd  = fs.openSync(req.file.path, 'r');
+      const buf = Buffer.alloc(SQLITE_MAGIC.length);
+      fs.readSync(fd, buf, 0, SQLITE_MAGIC.length, 0);
+      fs.closeSync(fd);
       if (!buf.equals(SQLITE_MAGIC)) {
         fs.unlinkSync(req.file.path);
         return res.status(400).json({ error: 'Uploaded file is not a valid SQLite database' });
@@ -397,15 +409,18 @@ router.get('/cloud-sync', requireAuth, (req, res) => {
 // PUT /api/settings/cloud-sync
 router.put('/cloud-sync', requireAuth, (req, res) => {
   const cfg = cloudSync.loadConfig();
-  if (req.body.enabled     !== undefined) cfg.enabled     = !!req.body.enabled;
-  if (req.body.url         !== undefined) cfg.url         = String(req.body.url || '').trim();
+  if (req.body.enabled  !== undefined) cfg.enabled     = !!req.body.enabled;
+  if (req.body.url      !== undefined) cfg.url         = String(req.body.url || '').trim();
   if (req.body.displayName !== undefined) cfg.displayName = String(req.body.displayName || 'Director').trim() || 'Director';
-  if (req.body.secret) cfg.secretEnc = encryptValue(req.body.secret);
+  if (req.body.secret) {
+    // Encrypt and store — never stored plaintext
+    cfg.secretEnc = encryptValue(req.body.secret);
+  }
   cloudSync.saveConfig(cfg);
   res.json({ ok: true });
 });
 
-// POST /api/settings/cloud-sync/test
+// POST /api/settings/cloud-sync/test — verify URL + secret are working
 router.post('/cloud-sync/test', requireAuth, async (req, res) => {
   const cfg = cloudSync.loadConfig();
   if (!cfg.url || !cfg.secretEnc) return res.status(400).json({ error: 'URL and secret must be saved first.' });
@@ -417,37 +432,46 @@ router.post('/cloud-sync/test', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/settings/cloud-sync/push
+// POST /api/settings/cloud-sync/push — push local DB to remote now
 router.post('/cloud-sync/push', requireAuth, async (req, res) => {
   const cfg = cloudSync.loadConfig();
   if (!cfg.enabled || !cfg.url || !cfg.secretEnc) return res.status(400).json({ error: 'Cloud sync not configured.' });
   try {
     const result = await cloudSync.upload(cfg, DB_PATH, !!req.body.force);
     if (result.conflict && !req.body.force) {
-      return res.status(409).json({ conflict: true, uploadedBy: result.uploadedBy, uploadedAt: result.uploadedAt });
+      return res.status(409).json({
+        conflict:    true,
+        uploadedBy:  result.uploadedBy,
+        uploadedAt:  result.uploadedAt,
+      });
     }
-    if (result.version) { cfg.baseVersion = result.version; cloudSync.saveConfig(cfg); }
+    if (result.version) {
+      cfg.baseVersion = result.version;
+      cloudSync.saveConfig(cfg);
+    }
     res.json({ ok: true, version: result.version });
   } catch (err) {
     res.status(502).json({ ok: false, error: err.message });
   }
 });
 
-// POST /api/settings/cloud-sync/pull
+// POST /api/settings/cloud-sync/pull — download remote DB (writes .restore, needs restart)
 router.post('/cloud-sync/pull', requireAuth, async (req, res) => {
   const cfg = cloudSync.loadConfig();
   if (!cfg.enabled || !cfg.url || !cfg.secretEnc) return res.status(400).json({ error: 'Cloud sync not configured.' });
   const restorePath = DB_PATH + '.restore';
   try {
     const bytes = await cloudSync.download(cfg, restorePath);
+    // Validate it's a SQLite file (read first 16 bytes)
     const fd  = fs.openSync(restorePath, 'r');
     const buf = Buffer.alloc(16);
     fs.readSync(fd, buf, 0, 16, 0);
     fs.closeSync(fd);
-    if (!buf.equals(Buffer.from('SQLite format 3\0', 'utf8'))) {
+    if (!buf.equals(SQLITE_MAGIC)) {
       fs.unlinkSync(restorePath);
       return res.status(400).json({ error: 'Remote file is not a valid SQLite database.' });
     }
+    // Update baseVersion from remote status
     try {
       const status = await cloudSync.getStatus(cfg);
       if (status.version) { cfg.baseVersion = status.version; cloudSync.saveConfig(cfg); }
