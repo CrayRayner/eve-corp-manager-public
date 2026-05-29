@@ -72,7 +72,7 @@ function renderMetenoxTable() {
         <td colspan="5" class="dim" style="font-size:0.75rem">Structure no longer in corp — transferred or unanchored</td>
         <td class="text-center">
           <button class="btn btn-danger btn-small" data-armed="0"
-              onclick="armDeleteStructure(this,${s.structureId},'${s.name.replace(/'/g,"\\'")}')">Remove</button>
+              onclick="armDeleteStructure(this,${s.structureId})">Remove</button>
         </td>
       </tr>`;
     }

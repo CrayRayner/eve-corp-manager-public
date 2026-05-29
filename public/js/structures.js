@@ -181,7 +181,7 @@ async function loadStructures() {
           parts.push(`⛽ Fuel: ${s.fuelDaysLeft}d`);
         if (s.gas?.daysLeft != null && s.gas.daysLeft <= gasThreshold)
           parts.push(`💨 Gas: ${s.gas.daysLeft}d`);
-        return `<div class="alert alert-warn">⚠️ <strong>${s.name}</strong> (${s.systemName}) — ${parts.join('  ·  ')}</div>`;
+        return `<div class="alert alert-warn">⚠️ <strong>${esc(s.name)}</strong> (${esc(s.systemName)}) — ${parts.join('  ·  ')}</div>`;
       }).join('');
     } else {
       alertsEl.innerHTML = '';
@@ -196,7 +196,7 @@ async function loadStructures() {
           <td class="dim">${esc(s.systemName)}</td>
           <td colspan="7" class="dim" style="font-size:0.75rem">Structure no longer in corp — transferred or unanchored</td>
           <td><button class="btn btn-danger btn-small" data-armed="0"
-              onclick="armDeleteStructure(this,${s.structureId},'${s.name.replace(/'/g,"\\'")}')">Remove</button></td>
+              onclick="armDeleteStructure(this,${s.structureId})">Remove</button></td>
         </tr>`;
       }
 
@@ -223,9 +223,9 @@ async function loadStructures() {
       }
 
       return `<tr>
-        <td><strong>${s.name}</strong></td>
-        <td><span style="color:${typeColor}">${s.typeName}</span></td>
-        <td>${s.systemName}</td>
+        <td><strong>${esc(s.name)}</strong></td>
+        <td><span style="color:${typeColor}">${esc(s.typeName)}</span></td>
+        <td>${esc(s.systemName)}</td>
         <td class="text-right dim">${fmtDate(s.fuelExpires)}</td>
         <td class="text-right">${fuelDaysCell}</td>
         <td>${fuelBar}</td>
@@ -397,7 +397,7 @@ document.getElementById('loc-rename-input').addEventListener('keydown', e => {
 });
 
 // ── Missing structure removal ─────────────────────────────────────────────────
-function armDeleteStructure(btn, id, name) {
+function armDeleteStructure(btn, id) {
   if (btn.dataset.armed === '1') {
     deleteStructureRecord(id);
   } else {
