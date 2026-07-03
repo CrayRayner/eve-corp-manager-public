@@ -156,7 +156,6 @@ function loadTabContent(name) {
     case 'structures': loadStructures();  break;
     case 'metenox':    loadMetenox();     break;
     case 'wallet':     loadWallet();      break;
-    case 'mining':     loadMining();      break;
     case 'kills':        loadKills();             break;
     case 'contracts':    loadContracts();          break;
     case 'fleet-points': loadFleetPointsTab();     break;
@@ -172,7 +171,6 @@ function refreshTab(name) {
     case 'structures':   loadStructures();         break;
     case 'metenox':      loadMetenox();            break;
     case 'wallet':       loadTaxCharts(); loadWalletHistory(); break;
-    case 'mining':       loadMining();             break;
     case 'kills':        loadKills();              break;
     case 'contracts':    loadContracts();          break;
     case 'fleet-points': loadFleetPointsTab();     break;

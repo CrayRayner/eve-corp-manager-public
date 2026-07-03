@@ -84,7 +84,18 @@ async function download(cfg, destPath) {
  * Throws on network / server errors.
  */
 async function upload(cfg, dbPath, force = false) {
-  const buf  = fs.readFileSync(dbPath);
+  // Snapshot via the SQLite online backup API — reading the raw file of a live
+  // WAL database uploads a stale or torn copy (WAL content is not in the .db file).
+  // require('./db') is lazy so the startup download still runs before the DB opens.
+  const tmpPath = dbPath + '.sync-tmp';
+  let buf;
+  try {
+    const { db } = require('./db');
+    await db.backup(tmpPath);
+    buf = fs.readFileSync(tmpPath);
+  } finally {
+    try { fs.unlinkSync(tmpPath); } catch {}
+  }
   const by   = encodeURIComponent(cfg.displayName || 'Director');
   const base = cfg.baseVersion || 0;
   const url  = `${cfg.url}?action=upload&by=${by}&baseVersion=${base}${force ? '&force=1' : ''}`;

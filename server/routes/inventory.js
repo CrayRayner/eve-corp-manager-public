@@ -9,8 +9,8 @@ router.get('/', requireAuth, (req, res) => {
   const search   = (req.query.search || '').toLowerCase();
   const category = req.query.category || null;
 
-  let where = '1=1';
-  const args = [];
+  let where = 'corporation_id = ?';
+  const args = [req.session.corporationId];
 
   if (search) {
     where += ' AND LOWER(type_name) LIKE ?';
@@ -63,7 +63,7 @@ router.get('/', requireAuth, (req, res) => {
     }));
 
   // Available categories for filter
-  const categories = db.prepare('SELECT DISTINCT category FROM assets WHERE category IS NOT NULL ORDER BY category').all()
+  const categories = db.prepare('SELECT DISTINCT category FROM assets WHERE category IS NOT NULL AND corporation_id = ? ORDER BY category').all(req.session.corporationId)
     .map(r => r.category);
 
   const syncRow = db.prepare("SELECT last_sync FROM sync_status WHERE key = 'assets'").get();

@@ -3,14 +3,7 @@ const express = require('express');
 const router  = express.Router();
 const { requireAuth } = require('../auth');
 const { db } = require('../db');
-
-function currentPeriod() { return new Date().toISOString().slice(0, 7); }
-
-function nextMonthStart(period) {
-  const [y, m] = period.split('-').map(Number);
-  const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
-  return next + '-01T00:00:00Z';
-}
+const { currentPeriod, nextMonthStart } = require('../period-utils');
 
 // GET /api/kills — top killers + recent kills for a period
 // Default (no period or period=rolling30) → rolling last 30 days, consistent
