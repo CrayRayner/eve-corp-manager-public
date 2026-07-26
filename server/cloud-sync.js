@@ -92,6 +92,26 @@ async function upload(cfg, dbPath, force = false) {
   try {
     const { db } = require('./db');
     await db.backup(tmpPath);
+
+    // NEVER upload a corrupt database. Without this guard a locally damaged DB
+    // overwrites the last healthy remote copy and the only good backup is gone —
+    // exactly how a local corruption once became a total loss. quick_check catches
+    // page-level damage and is far cheaper than a full integrity_check.
+    const Database = require('better-sqlite3');
+    const probe    = new Database(tmpPath, { readonly: true });
+    let verdict;
+    try {
+      verdict = probe.pragma('quick_check', { simple: true });
+    } finally {
+      probe.close();
+    }
+    if (verdict !== 'ok') {
+      throw new Error(
+        `Local database failed integrity check (${verdict}) — upload aborted to protect the remote copy. ` +
+        `Restore a healthy database before syncing again.`
+      );
+    }
+
     buf = fs.readFileSync(tmpPath);
   } finally {
     try { fs.unlinkSync(tmpPath); } catch {}

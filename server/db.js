@@ -16,6 +16,26 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// ── Integrity check on open ───────────────────────────────────────────────────
+// Page-level corruption does not necessarily stop the DB from opening: damaged
+// pages only fail when something actually reads them, so a broken database can be
+// used for weeks before a write (e.g. the login writing corporation_id) blows up.
+// Check once at startup so the problem surfaces immediately instead of silently.
+let integrityVerdict = 'ok';
+try {
+  integrityVerdict = db.pragma('quick_check', { simple: true });
+} catch (err) {
+  integrityVerdict = 'check failed: ' + err.message;
+}
+if (integrityVerdict !== 'ok') {
+  console.error('─'.repeat(70));
+  console.error('[db] DATABASE CORRUPTION DETECTED:', integrityVerdict);
+  console.error('[db] Path:', DB_PATH);
+  console.error('[db] Cloud sync uploads are blocked while the DB is damaged, so the');
+  console.error('[db] remote copy stays intact. Restore from a backup or the cloud.');
+  console.error('─'.repeat(70));
+}
+
 // ── Schema ────────────────────────────────────────────────────────────────────
 db.exec(`
 CREATE TABLE IF NOT EXISTS tokens (
@@ -404,6 +424,7 @@ function getCachedName(id) {
 module.exports = {
   db,
   DB_PATH,
+  integrityVerdict,           // 'ok' or the quick_check failure text (see startup check above)
   saveToken, getToken, updateAccessToken,
   getSetting, setSetting,
   getSyncStatus, setSyncStatus,
