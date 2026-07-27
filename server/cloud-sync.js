@@ -75,6 +75,16 @@ async function download(cfg, destPath) {
   if (!res.ok) throw new Error(`download: HTTP ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   fs.writeFileSync(destPath, buf);
+
+  // Drop any -wal/-shm left over from the PREVIOUS database.
+  // A WAL belongs to exactly one database file. After replacing the .db, a stale
+  // WAL from an unclean shutdown (e.g. the installer killing the app) sits next to
+  // a file it does not belong to — SQLite may replay those frames into the new
+  // database and corrupt it. Deleting them is safe here: the downloaded file is
+  // already a complete, checkpointed database.
+  for (const suffix of ['-wal', '-shm']) {
+    try { fs.unlinkSync(destPath + suffix); } catch {}
+  }
   return buf.length;
 }
 

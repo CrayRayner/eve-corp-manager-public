@@ -34,6 +34,12 @@ function setupEnvironment() {
     try {
       if (fs.existsSync(dbPath)) fs.renameSync(dbPath, dbPath + '.bak');
       fs.renameSync(restorePath, dbPath);
+      // A WAL belongs to exactly one database file. Leaving the old -wal/-shm next
+      // to a restored .db lets SQLite replay foreign frames into it and corrupt it.
+      // Safe to delete: a restored backup is always a complete, checkpointed DB.
+      for (const suffix of ['-wal', '-shm']) {
+        try { fs.unlinkSync(dbPath + suffix); } catch {}
+      }
       console.log('[Electron] Restored database from backup; previous DB saved as corp.db.bak');
     } catch (e) {
       console.error('[Electron] Restore failed:', e.message);
