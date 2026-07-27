@@ -94,6 +94,61 @@
   }
 })();
 
+// ── Login-screen database recovery ─────────────────────────────────────────────
+// Runs unconditionally (outside the login-gated init): when the DB is damaged the
+// login itself fails, so this must not depend on being logged in.
+(function setupLoginRecovery() {
+  const toggle   = document.getElementById('recovery-toggle');
+  const panel    = document.getElementById('recovery-panel');
+  const alertBox = document.getElementById('recovery-alert');
+  const alertDet = document.getElementById('recovery-alert-detail');
+  const statusEl = document.getElementById('recovery-status');
+  const btn      = document.getElementById('recovery-restore-btn');
+  const fileInp  = document.getElementById('recovery-file-input');
+  if (!toggle || !panel) return;
+
+  toggle.addEventListener('click', () => {
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  });
+
+  // Surface a damaged database immediately, with the panel already open.
+  api.get('/auth/recovery-status').then(s => {
+    if (!s.healthy) {
+      alertDet.textContent = s.exists
+        ? `Integrity check failed (${s.verdict}). Logging in writes to the database and will fail until it is restored.`
+        : 'No database file found.';
+      alertBox.style.display = 'block';
+      panel.style.display    = 'block';
+    }
+  }).catch(() => {});
+
+  btn?.addEventListener('click', () => fileInp.click());
+
+  fileInp?.addEventListener('change', async () => {
+    const file = fileInp.files?.[0];
+    if (!file) return;
+    statusEl.style.color = 'var(--text-dim)';
+    statusEl.textContent = `Uploading ${file.name}…`;
+    btn.disabled = true;
+    try {
+      const fd  = new FormData();
+      fd.append('file', file);
+      // Not via api.* — that helper sends JSON; a file upload needs multipart.
+      const res  = await fetch('/auth/recovery-restore', { method: 'POST', body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      statusEl.style.color = 'var(--green)';
+      statusEl.textContent = data.message || 'Backup staged. Restart the app to complete the restore.';
+    } catch (err) {
+      statusEl.style.color = 'var(--red)';
+      statusEl.textContent = 'Restore failed: ' + err.message;
+    } finally {
+      btn.disabled = false;
+      fileInp.value = '';   // allow re-picking the same file
+    }
+  });
+})();
+
 // ── Tab Visibility ─────────────────────────────────────────────────────────────
 const CONFIGURABLE_TABS = ['structures', 'metenox', 'wallet', 'kills', 'contracts', 'health'];
 

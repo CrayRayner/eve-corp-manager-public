@@ -40,6 +40,34 @@
       </ul>
       <p style="font-size:0.72rem;color:var(--text-dim);margin-top:8px">Corp kills are fetched from zKillboard (public, no scope needed). Jita market prices are fetched anonymously from ESI.</p>
     </div>
+
+    <!-- Database recovery — reachable without logging in, because a damaged
+         database breaks the login itself and Settings would be unreachable. -->
+    <div id="login-recovery" style="margin-top:20px;text-align:left">
+      <div id="recovery-alert" style="display:none;background:rgba(224,48,48,.12);border:1px solid rgba(224,48,48,.4);border-radius:6px;padding:12px 16px;margin-bottom:12px">
+        <div style="color:#ff6b6b;font-size:0.85rem;font-weight:600;margin-bottom:4px">⚠ Database problem detected</div>
+        <div id="recovery-alert-detail" style="color:#c5d5e8;font-size:0.78rem;line-height:1.5"></div>
+      </div>
+
+      <button type="button" id="recovery-toggle"
+              style="background:none;border:none;color:var(--text-dim);font-size:0.75rem;cursor:pointer;text-decoration:underline;padding:0">
+        Can't log in? Database recovery…
+      </button>
+
+      <div id="recovery-panel" style="display:none;margin-top:10px;padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+        <p style="font-size:0.76rem;color:var(--text-dim);line-height:1.6;margin:0 0 12px">
+          If the login fails or data looks wrong, the local database may be damaged.
+          Save a copy of the current one first, then load a healthy backup.
+          The restore is applied on the next app start.
+        </p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <a class="btn btn-ghost btn-small" href="/auth/recovery-backup" style="font-size:0.72rem">⭳ Save current database</a>
+          <button class="btn btn-primary btn-small" id="recovery-restore-btn" style="font-size:0.72rem">⭱ Load backup…</button>
+          <input type="file" id="recovery-file-input" accept=".db,.sqlite,.sqlite3" style="display:none">
+        </div>
+        <div id="recovery-status" style="font-size:0.75rem;color:var(--text-dim);margin-top:10px;line-height:1.5"></div>
+      </div>
+    </div>
   </div>
 </div>
 

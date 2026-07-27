@@ -2,8 +2,62 @@
 const express = require('express');
 const router  = express.Router();
 const crypto  = require('crypto');
+const fs = require('fs');
 const { buildAuthUrl, exchangeCode, verifyAndSave, REQUIRED_SCOPES } = require('../auth');
 const { getToken, db } = require('../db');
+const recovery = require('../db-recovery');
+
+// ── Database recovery (available WITHOUT login) ───────────────────────────────
+// A corrupt database breaks the login itself (the callback writes corporation_id),
+// so Settings → Backup & Restore becomes unreachable exactly when it is needed.
+// These routes expose the same backup/restore logic on the login screen.
+//
+// Security: state-changing routes here have no session cookie to protect them,
+// so sameOriginOnly() blocks cross-origin POSTs from any page in a normal browser.
+// Beyond that, anything able to reach localhost can already read and replace the
+// database on disk directly — these routes grant no additional access.
+
+// GET /auth/recovery-status — is the database healthy? (drives the login-screen panel)
+router.get('/recovery-status', (req, res) => {
+  const status = recovery.getStatus();
+  res.json({
+    healthy:  status.healthy,
+    verdict:  status.healthy ? 'ok' : String(status.verdict).split('\n')[0].slice(0, 200),
+    exists:   status.exists,
+    loggedIn: !!(req.session && req.session.characterId),
+  });
+});
+
+// GET /auth/recovery-backup — download a snapshot of the CURRENT database.
+// Works even when damaged: salvaging what is left beats overwriting it blindly.
+router.get('/recovery-backup', recovery.sameOriginOnly, async (req, res) => {
+  let tmpPath;
+  try {
+    tmpPath = await recovery.createSnapshot();
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="corp-backup-${date}.db"`);
+    const stream = fs.createReadStream(tmpPath);
+    stream.pipe(res);
+    stream.on('close', () => { try { fs.unlinkSync(tmpPath); } catch {} });
+  } catch (err) {
+    if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch {} }
+    res.status(500).json({ error: 'Backup failed: ' + err.message });
+  }
+});
+
+// POST /auth/recovery-restore — upload a .db backup; applied on next launch
+router.post('/recovery-restore', recovery.sameOriginOnly, (req, res, next) => {
+  recovery.upload.single('file')(req, res, (err) => {
+    if (err) return next(err);
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    try {
+      res.json(recovery.stageRestore(req.file.path));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+});
 
 // GET /auth/login — redirect to EVE SSO
 router.get('/login', (req, res) => {

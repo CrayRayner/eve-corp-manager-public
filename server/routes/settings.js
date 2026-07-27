@@ -3,10 +3,10 @@ const express = require('express');
 const router  = express.Router();
 const path    = require('path');
 const fs      = require('fs');
-const multer  = require('multer');
 const { requireAuth }  = require('../auth');
 const { db, getSetting, setSetting, getSyncStatus, DB_PATH } = require('../db');
 const { encryptValue, decryptValue } = require('../secure-storage');
+const recovery = require('../db-recovery');
 
 // ── Alt → Main Mappings ────────────────────────────────────────────────────────
 
@@ -157,12 +157,11 @@ router.get('/sync-errors', requireAuth, (req, res) => {
 });
 
 // GET /api/settings/backup — create a safe consistent backup using SQLite's backup API
+// Shares its implementation with the login-screen recovery panel (see db-recovery.js).
 router.get('/backup', requireAuth, async (req, res) => {
-  if (!fs.existsSync(DB_PATH)) return res.status(404).json({ error: 'Database not found' });
-  const tmpPath = DB_PATH + '.backup-tmp';
+  let tmpPath;
   try {
-    // db.backup() uses SQLite's online backup API — safe with WAL, always consistent
-    await db.backup(tmpPath);
+    tmpPath = await recovery.createSnapshot();
     const date = new Date().toISOString().slice(0, 10);
     res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="corp-backup-${date}.db"`);
@@ -170,40 +169,20 @@ router.get('/backup', requireAuth, async (req, res) => {
     stream.pipe(res);
     stream.on('close', () => { try { fs.unlinkSync(tmpPath); } catch {} });
   } catch (err) {
-    try { fs.unlinkSync(tmpPath); } catch {}
+    if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch {} }
     res.status(500).json({ error: 'Backup failed: ' + err.message });
   }
 });
 
-const uploadDir = path.join(path.dirname(DB_PATH), 'upload');
-const upload = multer({
-  storage: multer.diskStorage({ destination: (_req, _file, cb) => { fs.mkdirSync(uploadDir, { recursive: true }); cb(null, uploadDir); } }),
-  limits: { fileSize: 200 * 1024 * 1024 },
-});
-
-const SQLITE_MAGIC = Buffer.from('SQLite format 3\0', 'utf8');
-
 router.post('/restore', requireAuth, (req, res, next) => {
-  upload.single('file')(req, res, (err) => {
+  recovery.upload.single('file')(req, res, (err) => {
     if (err) return next(err);
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const restorePath = DB_PATH + '.restore';
     try {
-      const fd  = fs.openSync(req.file.path, 'r');
-      const buf = Buffer.alloc(SQLITE_MAGIC.length);
-      fs.readSync(fd, buf, 0, SQLITE_MAGIC.length, 0);
-      fs.closeSync(fd);
-      if (!buf.equals(SQLITE_MAGIC)) {
-        fs.unlinkSync(req.file.path);
-        return res.status(400).json({ error: 'Uploaded file is not a valid SQLite database' });
-      }
-      fs.copyFileSync(req.file.path, restorePath);
-      fs.unlinkSync(req.file.path);
+      return res.json(recovery.stageRestore(req.file.path));
     } catch (e) {
-      try { fs.unlinkSync(req.file.path); } catch {}
-      return res.status(500).json({ error: e.message });
+      return res.status(400).json({ error: e.message });
     }
-    res.json({ ok: true, message: 'Backup saved. Restart the application to complete restore.' });
   });
 });
 
@@ -462,12 +441,7 @@ router.post('/cloud-sync/pull', requireAuth, async (req, res) => {
   const restorePath = DB_PATH + '.restore';
   try {
     const bytes = await cloudSync.download(cfg, restorePath);
-    // Validate it's a SQLite file (read first 16 bytes)
-    const fd  = fs.openSync(restorePath, 'r');
-    const buf = Buffer.alloc(16);
-    fs.readSync(fd, buf, 0, 16, 0);
-    fs.closeSync(fd);
-    if (!buf.equals(SQLITE_MAGIC)) {
+    if (!recovery.isSqliteFile(restorePath)) {
       fs.unlinkSync(restorePath);
       return res.status(400).json({ error: 'Remote file is not a valid SQLite database.' });
     }
