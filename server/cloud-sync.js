@@ -74,6 +74,24 @@ async function download(cfg, destPath) {
   });
   if (!res.ok) throw new Error(`download: HTTP ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
+
+  // Keep one copy of whatever we are about to replace. A client whose uploads were
+  // refused (no write lock, or an app version that ignored the rejection) still has
+  // its only copy of those changes here — overwriting it unasked would destroy them.
+  // The -wal must come along: the newest changes live there, so the .db alone would
+  // be an incomplete snapshot. Naming it <bak>-wal keeps SQLite able to recover it.
+  try {
+    if (fs.existsSync(destPath)) {
+      const bak = destPath + '.pre-download.bak';
+      fs.copyFileSync(destPath, bak);
+      for (const suffix of ['-wal', '-shm']) {
+        try { fs.copyFileSync(destPath + suffix, bak + suffix); } catch {}
+      }
+    }
+  } catch (e) {
+    console.warn('[CloudSync] Could not back up local DB before download:', e.message);
+  }
+
   fs.writeFileSync(destPath, buf);
 
   // Drop any -wal/-shm left over from the PREVIOUS database.
